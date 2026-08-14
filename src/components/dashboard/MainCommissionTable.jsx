@@ -207,9 +207,9 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
   return (
     <div id="main-commission-page-layout" className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-row items-center justify-between gap-3 w-full min-w-0">
         {/* Status Tabs pill bar */}
-        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-slate-950 p-1 rounded-full flex flex-wrap gap-0.5 shadow-inner items-center overflow-x-auto scrollbar-none border border-slate-800/80">
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-slate-950 p-1 rounded-full flex flex-nowrap gap-0.5 shadow-inner items-center overflow-x-auto scrollbar-none border border-slate-800/80 min-w-0 flex-1 md:flex-initial">
           {statusTabs.map((tab) => {
             const isActive = selectedStatus === tab.id;
             const count = statusCounts[tab.id] || 0;
@@ -217,7 +217,7 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
               <button
                 key={tab.id}
                 onClick={() => setSelectedStatus(tab.id)}
-                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-white text-blue-950 shadow-md font-extrabold'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
@@ -242,7 +242,7 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
           <button
             id="admin-create-commission-btn"
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 text-xs font-bold rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 shrink-0"
+            className="px-3 py-1.5 text-xs font-bold rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Create Commission</span>
