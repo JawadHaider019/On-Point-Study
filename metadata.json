@@ -1,0 +1,6 @@
+{
+  "name": "On Point Study",
+  "description": "Commission, instalment, claim, and clawback management platform for On Point Study recruitment agents and finance admins.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
