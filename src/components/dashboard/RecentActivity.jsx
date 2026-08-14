@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export const RecentActivity = () => {
-  const { auditLogs, notifications, claims, clawbacks, setActiveTab, setSelectedStudentId } = useApp();
+  const { currentUser, auditLogs, notifications, claims, clawbacks, setActiveTab, setSelectedStudentId } = useApp();
 
   // Combine audit logs and notifications into a unified activity feed
   const activityItems = [
@@ -132,7 +132,7 @@ export const RecentActivity = () => {
 
           <div className="space-y-2.5">
             <button
-              onClick={() => setActiveTab('claims')}
+              onClick={() => setActiveTab(currentUser.role === 'ADMIN' ? 'commission' : 'claims')}
               className="w-full p-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-left transition-all flex items-center justify-between group"
             >
               <div className="flex items-center gap-2.5">

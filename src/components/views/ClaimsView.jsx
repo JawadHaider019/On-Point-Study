@@ -26,6 +26,20 @@ export const ClaimsView = () => {
     updateClaimStatus,
   } = useApp();
 
+  if (currentUser?.role === 'ADMIN') {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-md mx-auto my-12 shadow-xs">
+        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100">
+          <FileCheck2 className="w-6 h-6" />
+        </div>
+        <h3 className="text-sm font-bold text-slate-900 mb-2">Access Restructured</h3>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          The Commission Claims interface is reserved for partner agents. Admin users manage all claims and update statuses directly from the <strong>Commission Overview</strong> page.
+        </p>
+      </div>
+    );
+  }
+
   const [localSearch, setLocalSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedIntake, setSelectedIntake] = useState('ALL');
@@ -47,7 +61,7 @@ export const ClaimsView = () => {
 
     commissions.forEach((comm) => {
       const student = students.find((s) => s.id === comm.studentId);
-      const claim = claims.find((c) => c.commissionId === comm.id || c.studentId === comm.studentId);
+      const claim = claims.find((c) => c.commissionId === comm.id);
 
       if (claim) {
         list.push({
@@ -56,7 +70,7 @@ export const ClaimsView = () => {
         });
       } else {
         list.push({
-          id: `CLM-${comm.studentId}`,
+          id: `CLM-${comm.id}`,
           commissionId: comm.id,
           studentId: comm.studentId,
           studentName: student?.name || 'Unknown Student',
@@ -200,14 +214,14 @@ export const ClaimsView = () => {
         targetStatus: newStatus,
       });
     } else {
-      updateClaimStatus(claim.studentId, newStatus);
+      updateClaimStatus(claim.commissionId || claim.studentId, newStatus);
     }
   };
 
   const handleConfirmStatusUpdate = (reason, paidDate) => {
     if (statusModalConfig.claim) {
       updateClaimStatus(
-        statusModalConfig.claim.studentId,
+        statusModalConfig.claim.commissionId || statusModalConfig.claim.studentId,
         statusModalConfig.targetStatus,
         reason,
         paidDate
@@ -231,7 +245,37 @@ export const ClaimsView = () => {
 
   return (
     <div id="main-claims-page-layout" className="space-y-5">
-
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Status Tabs pill bar */}
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-slate-950 p-1 rounded-full flex flex-wrap gap-0.5 shadow-inner items-center overflow-x-auto scrollbar-none border border-slate-800/80">
+          {statusTabs.map((tab) => {
+            const isActive = selectedStatus === tab.id;
+            const count = statusCounts[tab.id] || 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedStatus(tab.id)}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+                  isActive
+                    ? 'bg-white text-blue-950 shadow-md font-extrabold'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold transition-all ${
+                    isActive
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-black/35 text-white/95'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* 3. SEPARATE TABLE CARD */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">

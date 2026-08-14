@@ -37,7 +37,7 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'students', label: 'Students', icon: Users },
     { id: 'commission', label: 'Commission Overview', icon: Coins, adminOnly: true },
-    { id: 'claims', label: currentUser?.role === 'ADMIN' ? 'Commission Claims' : 'Claim Commission', icon: FileCheck2 },
+    { id: 'claims', label: 'Claim Commission', icon: FileCheck2, agentOnly: true },
     { id: 'payments', label: 'Payments & Invoices', icon: Receipt },
     // Admin only navigation items
     {
@@ -83,6 +83,9 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
         <nav className="flex-1 w-full px-2 space-y-2 flex flex-col items-center">
           {navItems.map((item) => {
             if (item.adminOnly && currentUser.role !== 'ADMIN') {
+              return null;
+            }
+            if (item.agentOnly && currentUser.role === 'ADMIN') {
               return null;
             }
 
@@ -166,6 +169,9 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
         {navItems.map((item) => {
           if (item.adminOnly && currentUser.role !== 'ADMIN') {
             return null; // Enforce RBAC in navigation
+          }
+          if (item.agentOnly && currentUser.role === 'ADMIN') {
+            return null;
           }
 
           const isDisabled = item.id !== 'commission' && item.id !== 'claims';

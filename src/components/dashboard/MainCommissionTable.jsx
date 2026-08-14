@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatGBP } from '../../utils/formatters';
+import { formatGBP, getStatusStyle } from '../../utils/formatters';
 import { StatusBadge } from '../common/StatusBadge';
 import { Plus } from 'lucide-react';
 import { CreateCommissionModal } from '../modals/CreateCommissionModal';
+import { ClaimStatusUpdateModal } from '../modals/ClaimStatusUpdateModal';
 
 export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
-  const { currentUser, students, commissions } = useApp();
+  const { currentUser, students, commissions, updateClaimStatus } = useApp();
 
   const [localSearch, setLocalSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -14,9 +15,42 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
   const [selectedAgent, setSelectedAgent] = useState('ALL');
   const [selectedUniversity, setSelectedUniversity] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [statusModalConfig, setStatusModalConfig] = useState({
+    isOpen: false,
+    claim: null,
+    targetStatus: '',
+  });
 
   const [sortField, setSortField] = useState('created');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  const handleSelectStatus = (claim, newStatus) => {
+    if (['Withdrawn', 'Not Eligible', 'Rejected', 'Paid'].includes(newStatus)) {
+      setStatusModalConfig({
+        isOpen: true,
+        claim,
+        targetStatus: newStatus,
+      });
+    } else {
+      updateClaimStatus(claim.commissionId || claim.studentId, newStatus);
+    }
+  };
+
+  const handleConfirmStatusUpdate = (reason, paidDate) => {
+    if (statusModalConfig.claim) {
+      updateClaimStatus(
+        statusModalConfig.claim.commissionId || statusModalConfig.claim.studentId,
+        statusModalConfig.targetStatus,
+        reason,
+        paidDate
+      );
+    }
+    setStatusModalConfig({
+      isOpen: false,
+      claim: null,
+      targetStatus: '',
+    });
+  };
 
   const effectiveSearch = externalSearchQuery || localSearch;
 
@@ -32,10 +66,10 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
   // Map students with their commissions
   const baseRows = useMemo(() => {
-    return baseStudents.map((student) => {
-      const commission = commissions.find((c) => c.studentId === student.id);
+    return commissions.map((commission) => {
+      const student = baseStudents.find((s) => s.id === commission.studentId);
       return { student, commission };
-    }).filter((item) => item.commission !== undefined);
+    }).filter((item) => item.student !== undefined);
   }, [baseStudents, commissions]);
 
   // Compute count badges for status tabs
@@ -109,12 +143,7 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
         let res = 0;
         if (sortField === 'created') {
-          const timeA = commA.updatedAt ? new Date(commA.updatedAt).getTime() : 0;
-          const timeB = commB.updatedAt ? new Date(commB.updatedAt).getTime() : 0;
-          res = timeA - timeB;
-          if (res === 0) {
-            res = commA.id.localeCompare(commB.id, undefined, { numeric: true });
-          }
+          res = commA.id.localeCompare(commB.id, undefined, { numeric: true });
         } else if (sortField === 'name') {
           res = studA.name.localeCompare(studB.name);
         } else if (sortField === 'intake') {
@@ -178,8 +207,38 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
   return (
     <div id="main-commission-page-layout" className="space-y-5">
-      {currentUser.role === 'ADMIN' && (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Status Tabs pill bar */}
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-slate-950 p-1 rounded-full flex flex-wrap gap-0.5 shadow-inner items-center overflow-x-auto scrollbar-none border border-slate-800/80">
+          {statusTabs.map((tab) => {
+            const isActive = selectedStatus === tab.id;
+            const count = statusCounts[tab.id] || 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedStatus(tab.id)}
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+                  isActive
+                    ? 'bg-white text-blue-950 shadow-md font-extrabold'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold transition-all ${
+                    isActive
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-black/35 text-white/95'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {currentUser.role === 'ADMIN' && (
           <button
             id="admin-create-commission-btn"
             onClick={() => setShowCreateModal(true)}
@@ -188,8 +247,8 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
             <Plus className="w-4 h-4" />
             <span>Create Commission</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 3. SEPARATE TABLE CARD */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
@@ -237,8 +296,8 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
                   return (
                     <tr
-                      key={student.id}
-                      id={`student-row-${student.id}`}
+                      key={commission.id}
+                      id={`student-row-${commission.id}`}
                       className="hover:bg-slate-50/80 transition-colors group"
                     >
                       {/* 1. ID */}
@@ -298,7 +357,45 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
 
                       {/* 9. Status */}
                       <td className="p-3.5">
-                        <StatusBadge status={commission.status} size="sm" />
+                        {currentUser.role === 'ADMIN' ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 animate-pulse ${
+                                getStatusStyle(commission.status).dot
+                              }`}
+                            />
+                            <select
+                              value={commission.status}
+                              onChange={(e) =>
+                                handleSelectStatus(
+                                  {
+                                    studentId: student.id,
+                                    studentName: student.name,
+                                    university: student.university,
+                                    amount: commission.totalCommission,
+                                    commissionId: commission.id,
+                                  },
+                                  e.target.value
+                                )
+                              }
+                              className={`inline-flex items-center rounded-full border tracking-wide whitespace-nowrap transition-colors cursor-pointer px-3 py-1 text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500/50 ${
+                                getStatusStyle(commission.status).badge
+                              }`}
+                            >
+                              <option value="Ready to Claim" className="bg-white text-slate-900 font-medium">Ready to Claim</option>
+                              <option value="Under Review" className="bg-white text-slate-900 font-medium">Under Review</option>
+                              <option value="Ready for Payment" className="bg-white text-slate-900 font-medium">Ready for Payment</option>
+                              <option value="Paid" className="bg-white text-slate-900 font-medium">Paid</option>
+                              <option value="Clawback Requested" className="bg-white text-slate-900 font-medium">Clawback Requested</option>
+                              <option value="In Progress" className="bg-white text-slate-900 font-medium">In Progress</option>
+                              <option value="Withdrawn" className="bg-white text-slate-900 font-medium">Withdrawn</option>
+                              <option value="Not Eligible" className="bg-white text-slate-900 font-medium">Not Eligible</option>
+                              <option value="Rejected" className="bg-white text-slate-900 font-medium">Rejected</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <StatusBadge status={commission.status} size="sm" />
+                        )}
                       </td>
                     </tr>
                   );
@@ -312,6 +409,14 @@ export const MainCommissionTable = ({ externalSearchQuery = '' }) => {
       <CreateCommissionModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+      />
+
+      <ClaimStatusUpdateModal
+        isOpen={statusModalConfig.isOpen}
+        claim={statusModalConfig.claim}
+        targetStatus={statusModalConfig.targetStatus}
+        onClose={() => setStatusModalConfig({ isOpen: false, claim: null, targetStatus: '' })}
+        onConfirm={handleConfirmStatusUpdate}
       />
     </div>
   );

@@ -24,7 +24,35 @@ const getStorageItem = (key, defaultValue) => {
   try {
     const saved = localStorage.getItem(key);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Sanitize commissions to eliminate duplicate IDs from previous runs
+      if (key === STORAGE_KEYS.COMMISSIONS && Array.isArray(parsed)) {
+        const seen = new Set();
+        let maxId = parsed.reduce((max, c) => {
+          const num = parseInt(c.id.replace(/\D/g, ''), 10);
+          return !isNaN(num) && num > max ? num : max;
+        }, 8);
+        return parsed.map((c) => {
+          if (!c.id || seen.has(c.id)) {
+            maxId += 1;
+            c.id = `COMM-${String(maxId).padStart(3, '0')}`;
+          }
+          seen.add(c.id);
+          return c;
+        });
+      }
+      // Sanitize claims to eliminate duplicate IDs from previous runs
+      if (key === STORAGE_KEYS.CLAIMS && Array.isArray(parsed)) {
+        const seen = new Set();
+        return parsed.map((cl) => {
+          if (!cl.id || seen.has(cl.id)) {
+            cl.id = `CLM-${cl.commissionId || Date.now()}`;
+          }
+          seen.add(cl.id);
+          return cl;
+        });
+      }
+      return parsed;
     }
   } catch (err) {
     console.error(`Error loading ${key} from localStorage:`, err);
@@ -95,9 +123,11 @@ export const AppProvider = ({ children }) => {
     if (target) {
       setCurrentUser(target);
       addToast(`Switched user role to ${target.name} (${target.role})`, 'info');
-      // Reset tab if Agent switches away from admin-only tab
-      if (target.role === 'AGENT' && ['admin-review', 'clawbacks', 'agents', 'reports'].includes(activeTab)) {
-        setActiveTab('dashboard');
+      // Reset tab if Agent switches away from admin-only tab or Admin switches away from agent-only tab
+      if (target.role === 'AGENT' && ['commission', 'admin-review', 'clawbacks', 'agents', 'reports'].includes(activeTab)) {
+        setActiveTab('claims');
+      } else if (target.role === 'ADMIN' && activeTab === 'claims') {
+        setActiveTab('commission');
       }
     }
   };
@@ -148,8 +178,17 @@ export const AppProvider = ({ children }) => {
       ? students.find((s) => s.id === payload.studentId)
       : students.find((s) => s.name === payload.studentName);
 
-    const targetStudentId = existingStudent ? existingStudent.id : `STU-${String(students.length + 1).padStart(3, '0')}`;
-    const newCommissionId = `COMM-${String(commissions.length + 1).padStart(3, '0')}`;
+    const maxStudentIdNum = students.reduce((max, s) => {
+      const num = parseInt(s.id.replace(/\D/g, ''), 10);
+      return !isNaN(num) && num > max ? num : max;
+    }, 0);
+    const targetStudentId = existingStudent ? existingStudent.id : `STU-${String(maxStudentIdNum + 1).padStart(3, '0')}`;
+
+    const maxCommIdNum = commissions.reduce((max, c) => {
+      const num = parseInt(c.id.replace(/\D/g, ''), 10);
+      return !isNaN(num) && num > max ? num : max;
+    }, 0);
+    const newCommissionId = `COMM-${String(maxCommIdNum + 1).padStart(3, '0')}`;
     const nowIso = new Date().toISOString();
 
     const initialStatus = payload.status || 'Ready to Claim';
@@ -168,7 +207,7 @@ export const AppProvider = ({ children }) => {
       setStudents((prev) =>
         prev.map((s) => (s.id === existingStudent.id ? { ...s, commissionId: newCommissionId } : s))
       );
-      setCommissions((prev) => [newCommission, ...prev.filter((c) => c.studentId !== existingStudent.id)]);
+      setCommissions((prev) => [newCommission, ...prev]);
     } else {
       const newStudent = {
         id: targetStudentId,
@@ -190,35 +229,40 @@ export const AppProvider = ({ children }) => {
     // Auto-create claim record if not Ready to Claim
     if (initialStatus !== 'Ready to Claim') {
       const initialClaim = {
-        id: `CLM-${targetStudentId}`,
+        id: `CLM-${newCommissionId}`,
         commissionId: newCommissionId,
         studentId: targetStudentId,
-        studentName: payload.studentName,
-        university: payload.university || 'Partner University',
-        course: payload.course || 'Standard Program',
-        agentId: payload.agentId || 'agent_001',
-        agentName: payload.agentName || 'Global Education Partners',
+        studentName: payload.studentName || (existingStudent ? existingStudent.name : 'Unknown Student'),
+        university: payload.university || (existingStudent ? existingStudent.university : 'Partner University'),
+        course: payload.course || (existingStudent ? existingStudent.course : 'Standard Program'),
+        agentId: payload.agentId || (existingStudent ? existingStudent.agentId : 'agent_001'),
+        agentName: payload.agentName || (existingStudent ? existingStudent.agentName : 'Global Education Partners'),
         amount: payload.totalCommission,
         submittedAt: nowIso,
         status: initialStatus,
         notes: `Commission created with status ${initialStatus}`,
       };
-      setClaims((prev) => [initialClaim, ...prev.filter((c) => c.studentId !== targetStudentId)]);
-    } else {
-      setClaims((prev) => prev.filter((c) => c.studentId !== targetStudentId));
+      setClaims((prev) => [initialClaim, ...prev.filter((c) => c.commissionId !== newCommissionId)]);
     }
 
     addAuditLog(targetStudentId, 'Commission Created', 'None', initialStatus, `New commission of £${payload.totalCommission} created by ${currentUser.name}.`);
-    addNotification('New Commission Created', `Admin created a new commission for ${payload.studentName} (£${payload.totalCommission}).`, 'info', targetStudentId);
-    addToast(`New commission for ${payload.studentName} (£${payload.totalCommission}) created successfully!`, 'success');
+    addNotification('New Commission Created', `Admin created a new commission for ${payload.studentName || (existingStudent ? existingStudent.name : 'Student')} (£${payload.totalCommission}).`, 'info', targetStudentId);
+    addToast(`New commission for ${payload.studentName || (existingStudent ? existingStudent.name : 'Student')} (£${payload.totalCommission}) created successfully!`, 'success');
   };
 
   // 1. Submit Claim (Agent action)
-  const submitClaim = (studentId) => {
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+  const submitClaim = (id) => {
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else {
+      comm = commissions.find((c) => c.id === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
 
+    const studentId = student.id;
     const prevStatus = comm.status;
     const nowIso = new Date().toISOString();
 
@@ -229,12 +273,12 @@ export const AppProvider = ({ children }) => {
       updatedAt: nowIso,
     };
 
-    setCommissions((prev) => prev.map((c) => (c.studentId === studentId ? updatedComm : c)));
+    setCommissions((prev) => prev.map((c) => (c.id === comm.id ? updatedComm : c)));
 
     // Upsert Claim record
     setClaims((prev) => {
-      const existingIdx = prev.findIndex((c) => c.studentId === studentId);
-      const claimId = `CLM-${studentId}`;
+      const existingIdx = prev.findIndex((c) => c.commissionId === comm.id);
+      const claimId = `CLM-${comm.id}`;
       if (existingIdx >= 0) {
         return prev.map((c, idx) =>
           idx === existingIdx
@@ -343,11 +387,18 @@ export const AppProvider = ({ children }) => {
   };
 
   // 3. Mark Payment Paid (Admin action)
-  const markPaymentPaid = (studentId, customDate) => {
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+  const markPaymentPaid = (id, customDate) => {
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else {
+      comm = commissions.find((c) => c.id === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
 
+    const studentId = student.id;
     const nowIso = new Date().toISOString();
     const paidAtIso = customDate ? new Date(customDate).toISOString() : nowIso;
 
@@ -357,7 +408,7 @@ export const AppProvider = ({ children }) => {
 
     setCommissions((prev) =>
       prev.map((c) =>
-        c.studentId === studentId
+        c.id === comm.id
           ? { ...c, status: 'Paid', paid: newPaid, remaining: newRemaining, paidAt: paidAtIso, updatedAt: nowIso }
           : c
       )
@@ -366,7 +417,7 @@ export const AppProvider = ({ children }) => {
     // Update corresponding claim if exists
     setClaims((prev) =>
       prev.map((cl) =>
-        cl.studentId === studentId
+        cl.commissionId === comm.id
           ? { ...cl, status: 'Paid', reviewedAt: nowIso, reviewedBy: currentUser.name }
           : cl
       )
@@ -378,18 +429,25 @@ export const AppProvider = ({ children }) => {
   };
 
   // 4. Adjust Commission (Admin action)
-  const adjustCommission = (studentId, newTotal, reason) => {
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+  const adjustCommission = (id, newTotal, reason) => {
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else {
+      comm = commissions.find((c) => c.id === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
 
+    const studentId = student.id;
     const oldTotal = comm.totalCommission;
     const newRemaining = Math.max(0, newTotal - comm.paid);
     const nowIso = new Date().toISOString();
 
     setCommissions((prev) =>
       prev.map((c) =>
-        c.studentId === studentId
+        c.id === comm.id
           ? {
               ...c,
               totalCommission: newTotal,
@@ -412,22 +470,29 @@ export const AppProvider = ({ children }) => {
   };
 
   // 5. Request Clawback (Admin action)
-  const requestClawback = (studentId, amount, reason) => {
+  const requestClawback = (id, amount, reason) => {
     if (currentUser.role !== 'ADMIN') {
       addToast('Unauthorized: Only Admins can initiate clawbacks.', 'error');
       return;
     }
 
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else {
+      comm = commissions.find((c) => c.id === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
 
+    const studentId = student.id;
     const nowIso = new Date().toISOString();
     const prevStatus = comm.status;
 
     setCommissions((prev) =>
       prev.map((c) =>
-        c.studentId === studentId
+        c.id === comm.id
           ? {
               ...c,
               status: 'Clawback Requested',
@@ -461,17 +526,24 @@ export const AppProvider = ({ children }) => {
   };
 
   // 6. Update Student Status directly (e.g. Withdrawn, Not Eligible)
-  const updateStudentStatus = (studentId, newStatus, reason) => {
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+  const updateStudentStatus = (id, newStatus, reason) => {
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else {
+      comm = commissions.find((c) => c.id === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
 
+    const studentId = student.id;
     const prevStatus = comm.status;
     const nowIso = new Date().toISOString();
 
     setCommissions((prev) =>
       prev.map((c) =>
-        c.studentId === studentId
+        c.id === comm.id
           ? {
               ...c,
               status: newStatus,
@@ -487,10 +559,19 @@ export const AppProvider = ({ children }) => {
   };
 
   // Update Claim Status (Admin dropdown action)
-  const updateClaimStatus = (studentId, newStatus, reason, customDate) => {
-    const student = students.find((s) => s.id === studentId);
-    const comm = commissions.find((c) => c.studentId === studentId);
-    if (!student || !comm) return;
+  const updateClaimStatus = (id, newStatus, reason, customDate) => {
+    let comm;
+    if (id.startsWith('STU-')) {
+      comm = commissions.find((c) => c.studentId === id);
+    } else if (id.startsWith('COMM-') || id.startsWith('COM-')) {
+      comm = commissions.find((c) => c.id === id);
+    } else {
+      comm = commissions.find((c) => c.id === id || c.studentId === id);
+    }
+    if (!comm) return;
+    const student = students.find((s) => s.id === comm.studentId);
+    if (!student) return;
+    const studentId = student.id;
 
     const prevStatus = comm.status;
     if (prevStatus === newStatus) return;
@@ -504,7 +585,7 @@ export const AppProvider = ({ children }) => {
 
     setCommissions((prev) =>
       prev.map((c) =>
-        c.studentId === studentId
+        c.id === comm.id
           ? {
               ...c,
               status: newStatus,
@@ -520,11 +601,11 @@ export const AppProvider = ({ children }) => {
 
     // Update or Upsert or Remove the claim record in claims state
     setClaims((prev) => {
-      const claimId = `CLM-${studentId}`;
-      const existingIdx = prev.findIndex((c) => c.id === claimId);
+      const claimId = `CLM-${comm.id}`;
+      const existingIdx = prev.findIndex((c) => c.commissionId === comm.id);
 
       if (newStatus === 'Ready to Claim') {
-        return prev.filter((c) => c.id !== claimId);
+        return prev.filter((c) => c.commissionId !== comm.id);
       }
 
       const notesText = reason || `Status changed to ${newStatus} by ${currentUser.name}.`;

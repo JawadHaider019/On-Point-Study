@@ -169,22 +169,7 @@ export const ClaimStatusUpdateModal = ({
             </div>
           )}
 
-          {/* Optional notes if marking as Paid */}
-          {isPaid && (
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-700">
-                Payment Reference / Notes <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <textarea
-                id="status-update-paid-notes"
-                rows={2}
-                placeholder="Transaction ID, bank details, references..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium resize-none"
-              />
-            </div>
-          )}
+
 
           {/* Actions */}
           <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">

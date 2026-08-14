@@ -21,7 +21,7 @@ export const Header = ({ searchQuery, setSearchQuery }) => {
       case 'students':
         return 'STUDENT MANAGEMENT';
       case 'commission':
-        return 'COMMISSION MANAGEMENT';
+        return 'COMMISSION OVERVIEW';
       case 'claims':
         return currentUser?.role === 'ADMIN' ? 'COMMISSION CLAIMS' : 'CLAIM COMMISSION';
       case 'payments':
