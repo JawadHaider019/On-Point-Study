@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { initialUsers } from '../../data/initialData';
 import { X, ShieldCheck, UserCheck, CheckCircle2, LogIn, ArrowRight } from 'lucide-react';
-import { ConfirmModal } from './ConfirmModal';
 
 export const SwitchUserModal = ({ isOpen, onClose }) => {
   const { currentUser, switchUser, addToast, setActiveTab } = useApp();
-  const [selectedUserToConfirm, setSelectedUserToConfirm] = useState(null);
 
   if (!isOpen) return null;
 
@@ -15,20 +13,14 @@ export const SwitchUserModal = ({ isOpen, onClose }) => {
       onClose();
       return;
     }
-    setSelectedUserToConfirm({ id: userId, name: userName, role: userRole });
-  };
-
-  const confirmUserSwitch = () => {
-    if (!selectedUserToConfirm) return;
-    const { id, name, role } = selectedUserToConfirm;
-    switchUser(id);
-    addToast(`Successfully logged in as ${name} (${role})`, 'success');
+    switchUser(userId);
+    addToast(`Successfully logged in as ${userName} (${userRole})`, 'success');
     
-    if (role !== 'ADMIN') {
-      setActiveTab('dashboard');
+    if (userRole !== 'ADMIN') {
+      setActiveTab('claims');
+    } else {
+      setActiveTab('commission');
     }
-    
-    setSelectedUserToConfirm(null);
     onClose();
   };
 
@@ -145,17 +137,6 @@ export const SwitchUserModal = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      {selectedUserToConfirm && (
-        <ConfirmModal
-          isOpen={!!selectedUserToConfirm}
-          title="Confirm User Account Switch"
-          message={`Are you sure you want to switch account to ${selectedUserToConfirm.name} (${selectedUserToConfirm.role})? Your active navigation and RBAC permissions will update immediately.`}
-          confirmText="Switch Account"
-          variant="primary"
-          onConfirm={confirmUserSwitch}
-          onCancel={() => setSelectedUserToConfirm(null)}
-        />
-      )}
     </div>
   );
 };

@@ -36,8 +36,8 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'students', label: 'Students', icon: Users },
-    { id: 'commission', label: 'Commission Overview', icon: Coins },
-    { id: 'claims', label: 'Claims Ledger', icon: FileCheck2 },
+    { id: 'commission', label: 'Commission Overview', icon: Coins, adminOnly: true },
+    { id: 'claims', label: 'Claim Commission', icon: FileCheck2 },
     { id: 'payments', label: 'Payments & Invoices', icon: Receipt },
     // Admin only navigation items
     {
@@ -86,8 +86,12 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
               return null;
             }
 
-            const isActive = activeTab === item.id;
             const isDisabled = item.id !== 'commission' && item.id !== 'claims';
+            if (isDisabled) {
+              return null;
+            }
+
+            const isActive = activeTab === item.id;
             const Icon = item.icon;
 
             return (
@@ -98,18 +102,16 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
                 onClick={() => !isDisabled && setActiveTab(item.id)}
                 title={isDisabled ? `${item.label} (Disabled)` : item.label}
                 aria-label={item.label}
-                className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all group ${
-                  isActive
-                    ? 'bg-white text-blue-800 shadow-md scale-105'
-                    : isDisabled
+                className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all group ${isActive
+                  ? 'bg-white text-blue-800 shadow-md scale-105'
+                  : isDisabled
                     ? 'text-white/40 cursor-not-allowed opacity-40'
                     : 'text-white hover:bg-white/15'
-                }`}
+                  }`}
               >
                 <Icon
-                  className={`w-5 h-5 transition-colors ${
-                    isActive ? 'text-blue-800' : 'text-white'
-                  }`}
+                  className={`w-5 h-5 transition-colors ${isActive ? 'text-blue-800' : 'text-white'
+                    }`}
                 />
               </button>
             );
@@ -166,8 +168,12 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
             return null; // Enforce RBAC in navigation
           }
 
-          const isActive = activeTab === item.id;
           const isDisabled = item.id !== 'commission' && item.id !== 'claims';
+          if (isDisabled) {
+            return null;
+          }
+
+          const isActive = activeTab === item.id;
           const Icon = item.icon;
 
           return (
@@ -176,19 +182,17 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
               id={`sidebar-nav-${item.id}`}
               disabled={isDisabled}
               onClick={() => !isDisabled && setActiveTab(item.id)}
-              className={`w-full flex items-center justify-between pl-5 pr-4 py-3 rounded-r-full rounded-l-none text-sm font-bold transition-all ${
-                isActive
-                  ? 'bg-white text-blue-900 shadow-md'
-                  : isDisabled
+              className={`w-full flex items-center justify-between pl-5 pr-4 py-3 rounded-r-full rounded-l-none text-sm font-bold transition-all ${isActive
+                ? 'bg-white text-blue-900 shadow-md'
+                : isDisabled
                   ? 'text-white/40 cursor-not-allowed opacity-40'
                   : 'text-white hover:bg-white/10'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3.5">
                 <Icon
-                  className={`w-5 h-5 transition-colors shrink-0 ${
-                    isActive ? 'text-blue-800' : 'text-white'
-                  }`}
+                  className={`w-5 h-5 transition-colors shrink-0 ${isActive ? 'text-blue-800' : 'text-white'
+                    }`}
                 />
                 <span className="truncate">{item.label}</span>
               </div>
@@ -210,7 +214,6 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
             <LogOut className="w-5 h-5 text-blue-800 group-hover:scale-110 transition-transform" />
             <span>Logout</span>
           </div>
-          <span className="text-xs text-blue-500 font-semibold group-hover:text-blue-800 transition-colors">Switch</span>
         </button>
       </div>
 

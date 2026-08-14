@@ -44,7 +44,10 @@ export const AppProvider = ({ children }) => {
   const [notifications, setNotifications] = useState(() => getStorageItem(STORAGE_KEYS.NOTIFICATIONS, initialNotifications));
   const [agents] = useState(initialAgents);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [activeTab, setActiveTab] = useState('commission');
+  const [activeTab, setActiveTab] = useState(() => {
+    const user = getStorageItem(STORAGE_KEYS.USER, initialUsers[0]);
+    return user && user.role === 'ADMIN' ? 'commission' : 'claims';
+  });
   const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
@@ -160,64 +163,17 @@ export const AppProvider = ({ children }) => {
 
     const firstInstalmentStatus = payload.initialInstalmentStatus || 'Ready to Claim';
 
-    let instalments = [];
-    if (payload.agreementType === '2-Instalment') {
-      const half = Math.round(payload.totalCommission / 2);
-      instalments = [
-        {
-          id: `INST-${targetStudentId}-1`,
-          commissionId: newCommissionId,
-          number: 1,
-          label: '1st Instalment (50%)',
-          amount: half,
-          dueDate: '2026-10-01T00:00:00Z',
-          status: firstInstalmentStatus,
-        },
-        {
-          id: `INST-${targetStudentId}-2`,
-          commissionId: newCommissionId,
-          number: 2,
-          label: '2nd Instalment (50%)',
-          amount: payload.totalCommission - half,
-          dueDate: '2027-01-15T00:00:00Z',
-          status: 'In Progress',
-        },
-      ];
-    } else {
-      // 3-Instalment
-      const inst1 = Math.round(payload.totalCommission * 0.4);
-      const inst2 = Math.round(payload.totalCommission * 0.3);
-      const inst3 = payload.totalCommission - inst1 - inst2;
-      instalments = [
-        {
-          id: `INST-${targetStudentId}-1`,
-          commissionId: newCommissionId,
-          number: 1,
-          label: '1st Instalment (40%)',
-          amount: inst1,
-          dueDate: '2026-10-01T00:00:00Z',
-          status: firstInstalmentStatus,
-        },
-        {
-          id: `INST-${targetStudentId}-2`,
-          commissionId: newCommissionId,
-          number: 2,
-          label: '2nd Instalment (30%)',
-          amount: inst2,
-          dueDate: '2027-01-15T00:00:00Z',
-          status: 'In Progress',
-        },
-        {
-          id: `INST-${targetStudentId}-3`,
-          commissionId: newCommissionId,
-          number: 3,
-          label: '3rd Instalment (30%)',
-          amount: inst3,
-          dueDate: '2027-05-01T00:00:00Z',
-          status: 'In Progress',
-        },
-      ];
-    }
+    const instalments = [
+      {
+        id: `INST-${targetStudentId}-1`,
+        commissionId: newCommissionId,
+        number: 1,
+        label: 'Full Commission (100%)',
+        amount: payload.totalCommission,
+        dueDate: '2026-10-01T00:00:00Z',
+        status: firstInstalmentStatus,
+      }
+    ];
 
     const overallStatus = firstInstalmentStatus === 'Ready to Claim' ? 'Ready to Claim' : 'In Progress';
 

@@ -19,7 +19,7 @@ export const initialUsers = [
   },
   {
     id: 'usr_admin_sarah',
-    name: 'Sarah Connor (Finance)',
+    name: 'Sarah Connor ',
     email: 'sarah.connor@studyfinance.org',
     role: 'ADMIN',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
