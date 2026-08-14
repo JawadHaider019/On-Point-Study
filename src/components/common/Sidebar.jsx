@@ -37,7 +37,7 @@ export const Sidebar = ({ isOpen, onToggle, onOpenSwitchUserModal }) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'students', label: 'Students', icon: Users },
     { id: 'commission', label: 'Commission Overview', icon: Coins, adminOnly: true },
-    { id: 'claims', label: 'Claim Commission', icon: FileCheck2 },
+    { id: 'claims', label: currentUser?.role === 'ADMIN' ? 'Commission Claims' : 'Claim Commission', icon: FileCheck2 },
     { id: 'payments', label: 'Payments & Invoices', icon: Receipt },
     // Admin only navigation items
     {

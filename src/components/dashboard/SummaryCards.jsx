@@ -31,13 +31,7 @@ export const SummaryCards = () => {
   // Ready to Claim count and total amount
   const readyToClaimComms = visibleCommissions.filter((c) => c.status === 'Ready to Claim');
   const readyToClaimCount = readyToClaimComms.length;
-  // Calculate total amount ready to claim across instalments
-  const readyToClaimAmount = visibleCommissions.reduce((sum, c) => {
-    const instsAmount = c.instalments
-      .filter((i) => i.status === 'Ready to Claim')
-      .reduce((iSum, i) => iSum + i.amount, 0);
-    return sum + instsAmount;
-  }, 0);
+  const readyToClaimAmount = readyToClaimComms.reduce((sum, c) => sum + c.totalCommission, 0);
 
   // In Progress / Under Review count and total amount
   const inProgressComms = visibleCommissions.filter(

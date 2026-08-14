@@ -99,8 +99,7 @@ export const CreateCommissionModal = ({ isOpen, onClose }) => {
       agentId: studentToUse.agentId,
       agentName: studentToUse.agentName,
       totalCommission,
-      agreementType: '2-Instalment',
-      initialInstalmentStatus: 'Ready to Claim',
+      status: 'Ready to Claim',
     });
 
     onClose();

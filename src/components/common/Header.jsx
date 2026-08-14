@@ -23,7 +23,7 @@ export const Header = ({ searchQuery, setSearchQuery }) => {
       case 'commission':
         return 'COMMISSION MANAGEMENT';
       case 'claims':
-        return 'CLAIM COMMISSION';
+        return currentUser?.role === 'ADMIN' ? 'COMMISSION CLAIMS' : 'CLAIM COMMISSION';
       case 'payments':
         return 'PAYMENTS & DISBURSEMENTS';
       case 'clawbacks':

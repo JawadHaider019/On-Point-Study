@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatGBP, formatDate } from '../../utils/formatters';
+import { formatGBP, formatDate, getStatusStyle } from '../../utils/formatters';
 import { StatusBadge } from '../common/StatusBadge';
 import {
   Plus,
@@ -11,6 +11,7 @@ import {
   FileCheck2,
 } from 'lucide-react';
 import { CreateCommissionModal } from '../modals/CreateCommissionModal';
+import { ClaimStatusUpdateModal } from '../modals/ClaimStatusUpdateModal';
 
 export const ClaimsView = () => {
   const {
@@ -22,6 +23,7 @@ export const ClaimsView = () => {
     approveClaim,
     markPaymentPaid,
     updateStudentStatus,
+    updateClaimStatus,
   } = useApp();
 
   const [localSearch, setLocalSearch] = useState('');
@@ -30,50 +32,45 @@ export const ClaimsView = () => {
   const [selectedAgent, setSelectedAgent] = useState('ALL');
   const [selectedUniversity, setSelectedUniversity] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [statusModalConfig, setStatusModalConfig] = useState({
+    isOpen: false,
+    claim: null,
+    targetStatus: '',
+  });
 
   const [sortField, setSortField] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Combine explicit claims from state with any commission instalments that haven't been claimed yet
+  // Combine explicit claims from state with any commission that haven't been claimed yet
   const allClaims = useMemo(() => {
     const list = [];
 
-    // Add existing explicit claims
-    claims.forEach((c) => {
-      const student = students.find((s) => s.id === c.studentId);
-      list.push({
-        ...c,
-        intake: student?.intake || 'N/A',
-      });
-    });
-
-    // Add instalments from commissions that don't have a claim record yet
     commissions.forEach((comm) => {
       const student = students.find((s) => s.id === comm.studentId);
-      comm.instalments.forEach((inst) => {
-        const exists = list.some(
-          (c) => c.studentId === comm.studentId && c.instalmentNumber === inst.number
-        );
-        if (!exists) {
-          list.push({
-            id: `CLM-${comm.studentId}-${inst.number}`,
-            instalmentId: inst.id,
-            commissionId: comm.id,
-            studentId: comm.studentId,
-            studentName: student?.name || 'Unknown Student',
-            university: student?.university || 'University',
-            course: student?.course || 'Course',
-            agentId: student?.agentId || 'AG-01',
-            agentName: student?.agentName || 'Agent',
-            instalmentNumber: inst.number,
-            amount: inst.amount,
-            submittedAt: comm.updatedAt || new Date().toISOString(),
-            status: inst.status,
-            notes: inst.label,
-            intake: student?.intake || 'N/A',
-          });
-        }
-      });
+      const claim = claims.find((c) => c.commissionId === comm.id || c.studentId === comm.studentId);
+
+      if (claim) {
+        list.push({
+          ...claim,
+          intake: student?.intake || 'N/A',
+        });
+      } else {
+        list.push({
+          id: `CLM-${comm.studentId}`,
+          commissionId: comm.id,
+          studentId: comm.studentId,
+          studentName: student?.name || 'Unknown Student',
+          university: student?.university || 'University',
+          course: student?.course || 'Course',
+          agentId: student?.agentId || 'AG-01',
+          agentName: student?.agentName || 'Agent',
+          amount: comm.totalCommission,
+          submittedAt: comm.updatedAt || new Date().toISOString(),
+          status: comm.status,
+          notes: comm.notes || student?.notes || '',
+          intake: student?.intake || 'N/A',
+        });
+      }
     });
 
     return list;
@@ -161,7 +158,7 @@ export const ClaimsView = () => {
         } else if (sortField === 'intake') {
           res = (a.intake || '').localeCompare(b.intake || '');
         } else if (sortField === 'instalment') {
-          res = a.instalmentNumber - b.instalmentNumber;
+          res = 0;
         } else if (sortField === 'amount') {
           res = a.amount - b.amount;
         } else if (sortField === 'date') {
@@ -193,6 +190,34 @@ export const ClaimsView = () => {
       setSortField(field);
       setSortOrder('asc');
     }
+  };
+
+  const handleSelectStatus = (claim, newStatus) => {
+    if (['Withdrawn', 'Not Eligible', 'Rejected', 'Paid'].includes(newStatus)) {
+      setStatusModalConfig({
+        isOpen: true,
+        claim,
+        targetStatus: newStatus,
+      });
+    } else {
+      updateClaimStatus(claim.studentId, newStatus);
+    }
+  };
+
+  const handleConfirmStatusUpdate = (reason, paidDate) => {
+    if (statusModalConfig.claim) {
+      updateClaimStatus(
+        statusModalConfig.claim.studentId,
+        statusModalConfig.targetStatus,
+        reason,
+        paidDate
+      );
+    }
+    setStatusModalConfig({
+      isOpen: false,
+      claim: null,
+      targetStatus: '',
+    });
   };
 
   const statusTabs = [
@@ -229,8 +254,6 @@ export const ClaimsView = () => {
                 <th className="p-3.5">Submitted / Updated</th>
 
                 <th className="p-3.5">Status</th>
-
-                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
 
@@ -287,75 +310,47 @@ export const ClaimsView = () => {
                       {formatDate(claim.submittedAt)}
                     </td>
 
-                    {/* 8. Status */}
+                    {/* 8. Status & Actions */}
                     <td className="p-3.5">
-                      <StatusBadge status={claim.status} size="sm" />
-                    </td>
-
-                    {/* 9. Actions */}
-                    <td className="p-3.5 text-right">
-                      {claim.status === 'Ready to Claim' && currentUser.role !== 'ADMIN' && (
-                        <button
-                          id={`claims-submit-btn-${claim.id}`}
-                          onClick={() => submitClaim(claim.studentId, claim.instalmentNumber)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Submit Claim</span>
-                        </button>
-                      )}
-
-                      {claim.status === 'Under Review' && (
-                        currentUser.role === 'ADMIN' ? (
-                          <div className="inline-flex items-center gap-1.5 justify-end">
-                            <button
-                              id={`claims-approve-btn-${claim.id}`}
-                              onClick={() => approveClaim(claim.id)}
-                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Approve</span>
-                            </button>
-                            <button
-                              id={`claims-reject-btn-${claim.id}`}
-                              onClick={() => updateStudentStatus(claim.studentId, 'Not Eligible', 'Claim rejected by admin')}
-                              className="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-all cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-amber-600 font-semibold text-xs inline-flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Under Review
-                          </span>
-                        )
-                      )}
-
-                      {claim.status === 'Ready for Payment' && (
-                        currentUser.role === 'ADMIN' ? (
-                          <button
-                            id={`claims-pay-btn-${claim.id}`}
-                            onClick={() => markPaymentPaid(claim.studentId, claim.instalmentNumber)}
-                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      {currentUser.role === 'ADMIN' ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 animate-pulse ${
+                              getStatusStyle(claim.status).dot
+                            }`}
+                          />
+                          <select
+                            value={claim.status}
+                            onChange={(e) => handleSelectStatus(claim, e.target.value)}
+                            className={`inline-flex items-center rounded-full border tracking-wide whitespace-nowrap transition-colors cursor-pointer px-3 py-1 text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500/50 ${
+                              getStatusStyle(claim.status).badge
+                            }`}
                           >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            <span>Mark Paid</span>
-                          </button>
-                        ) : (
-                          <span className="text-blue-600 font-semibold text-xs inline-flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Approved
-                          </span>
-                        )
-                      )}
-
-                      {claim.status === 'Paid' && (
-                        <span className="text-emerald-600 font-bold text-xs inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Paid
-                        </span>
-                      )}
-
-                      {(claim.status === 'In Progress' || claim.status === 'Withdrawn' || claim.status === 'Not Eligible' || claim.status === 'Clawback Requested' || (claim.status === 'Ready to Claim' && currentUser.role === 'ADMIN')) && (
-                        <span className="text-slate-400 text-xs italic">-</span>
+                            <option value="Ready to Claim" className="bg-white text-slate-900 font-medium">Ready to Claim</option>
+                            <option value="Under Review" className="bg-white text-slate-900 font-medium">Under Review</option>
+                            <option value="Ready for Payment" className="bg-white text-slate-900 font-medium">Ready for Payment</option>
+                            <option value="Paid" className="bg-white text-slate-900 font-medium">Paid</option>
+                            <option value="Clawback Requested" className="bg-white text-slate-900 font-medium">Clawback Requested</option>
+                            <option value="In Progress" className="bg-white text-slate-900 font-medium">In Progress</option>
+                            <option value="Withdrawn" className="bg-white text-slate-900 font-medium">Withdrawn</option>
+                            <option value="Not Eligible" className="bg-white text-slate-900 font-medium">Not Eligible</option>
+                            <option value="Rejected" className="bg-white text-slate-900 font-medium">Rejected</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 items-start">
+                          <StatusBadge status={claim.status} size="sm" />
+                          {claim.status === 'Ready to Claim' && (
+                            <button
+                              id={`claims-submit-btn-${claim.id}`}
+                              onClick={() => submitClaim(claim.studentId)}
+                              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Submit Claim</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -369,6 +364,14 @@ export const ClaimsView = () => {
       <CreateCommissionModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+      />
+
+      <ClaimStatusUpdateModal
+        isOpen={statusModalConfig.isOpen}
+        claim={statusModalConfig.claim}
+        targetStatus={statusModalConfig.targetStatus}
+        onClose={() => setStatusModalConfig({ isOpen: false, claim: null, targetStatus: '' })}
+        onConfirm={handleConfirmStatusUpdate}
       />
     </div>
   );

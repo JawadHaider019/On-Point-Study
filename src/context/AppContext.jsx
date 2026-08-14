@@ -137,18 +137,9 @@ export const AppProvider = ({ children }) => {
     return { student, commission };
   };
 
-  // Helper to recalculate overall commission status from instalments
+  // Helper to recalculate overall commission status
   const calculateOverallStatus = (comm) => {
-    if (comm.status === 'Withdrawn') return 'Withdrawn';
-    if (comm.status === 'Not Eligible') return 'Not Eligible';
-    if (comm.status === 'Clawback Requested') return 'Clawback Requested';
-
-    const insts = comm.instalments;
-    if (insts.every((i) => i.status === 'Paid')) return 'Paid';
-    if (insts.some((i) => i.status === 'Under Review')) return 'Under Review';
-    if (insts.some((i) => i.status === 'Ready for Payment')) return 'Ready for Payment';
-    if (insts.some((i) => i.status === 'Ready to Claim')) return 'Ready to Claim';
-    return 'In Progress';
+    return comm.status || 'In Progress';
   };
 
   // 0. Create Commission (Admin action)
@@ -161,21 +152,7 @@ export const AppProvider = ({ children }) => {
     const newCommissionId = `COMM-${String(commissions.length + 1).padStart(3, '0')}`;
     const nowIso = new Date().toISOString();
 
-    const firstInstalmentStatus = payload.initialInstalmentStatus || 'Ready to Claim';
-
-    const instalments = [
-      {
-        id: `INST-${targetStudentId}-1`,
-        commissionId: newCommissionId,
-        number: 1,
-        label: 'Full Commission (100%)',
-        amount: payload.totalCommission,
-        dueDate: '2026-10-01T00:00:00Z',
-        status: firstInstalmentStatus,
-      }
-    ];
-
-    const overallStatus = firstInstalmentStatus === 'Ready to Claim' ? 'Ready to Claim' : 'In Progress';
+    const initialStatus = payload.status || 'Ready to Claim';
 
     const newCommission = {
       id: newCommissionId,
@@ -183,9 +160,7 @@ export const AppProvider = ({ children }) => {
       totalCommission: payload.totalCommission,
       paid: 0,
       remaining: payload.totalCommission,
-      status: overallStatus,
-      agreementType: payload.agreementType,
-      instalments,
+      status: initialStatus,
       updatedAt: nowIso,
     };
 
@@ -198,13 +173,13 @@ export const AppProvider = ({ children }) => {
       const newStudent = {
         id: targetStudentId,
         name: payload.studentName,
-        university: payload.university,
-        course: payload.course,
-        intake: payload.intake,
-        grossFee: payload.grossFee,
-        netFee: payload.grossFee,
-        agentId: payload.agentId,
-        agentName: payload.agentName,
+        university: payload.university || 'Partner University',
+        course: payload.course || 'Standard Program',
+        intake: payload.intake || 'September 2026',
+        grossFee: payload.grossFee || 15000,
+        netFee: payload.grossFee || 15000,
+        agentId: payload.agentId || 'agent_001',
+        agentName: payload.agentName || 'Global Education Partners',
         commissionId: newCommissionId,
         enrolmentStatus: 'Enrolled',
       };
@@ -212,54 +187,45 @@ export const AppProvider = ({ children }) => {
       setCommissions((prev) => [newCommission, ...prev]);
     }
 
-    // Auto-create initial claim record for 1st instalment so it shows up in Claims View immediately
-    const initialClaim = {
-      id: `CLM-${targetStudentId}-1`,
-      instalmentId: instalments[0].id,
-      commissionId: newCommissionId,
-      studentId: targetStudentId,
-      studentName: payload.studentName,
-      university: payload.university,
-      course: payload.course,
-      agentId: payload.agentId,
-      agentName: payload.agentName,
-      instalmentNumber: 1,
-      amount: instalments[0].amount,
-      submittedAt: nowIso,
-      status: firstInstalmentStatus,
-      notes: `Commission created with status ${firstInstalmentStatus}`,
-    };
-    setClaims((prev) => [initialClaim, ...prev.filter((c) => c.studentId !== targetStudentId)]);
+    // Auto-create claim record if not Ready to Claim
+    if (initialStatus !== 'Ready to Claim') {
+      const initialClaim = {
+        id: `CLM-${targetStudentId}`,
+        commissionId: newCommissionId,
+        studentId: targetStudentId,
+        studentName: payload.studentName,
+        university: payload.university || 'Partner University',
+        course: payload.course || 'Standard Program',
+        agentId: payload.agentId || 'agent_001',
+        agentName: payload.agentName || 'Global Education Partners',
+        amount: payload.totalCommission,
+        submittedAt: nowIso,
+        status: initialStatus,
+        notes: `Commission created with status ${initialStatus}`,
+      };
+      setClaims((prev) => [initialClaim, ...prev.filter((c) => c.studentId !== targetStudentId)]);
+    } else {
+      setClaims((prev) => prev.filter((c) => c.studentId !== targetStudentId));
+    }
 
-    addAuditLog(targetStudentId, 'Commission Created', 'None', overallStatus, `New commission of £${payload.totalCommission} created by ${currentUser.name}.`);
+    addAuditLog(targetStudentId, 'Commission Created', 'None', initialStatus, `New commission of £${payload.totalCommission} created by ${currentUser.name}.`);
     addNotification('New Commission Created', `Admin created a new commission for ${payload.studentName} (£${payload.totalCommission}).`, 'info', targetStudentId);
     addToast(`New commission for ${payload.studentName} (£${payload.totalCommission}) created successfully!`, 'success');
   };
 
   // 1. Submit Claim (Agent action)
-  const submitClaim = (studentId, instalmentNumber) => {
+  const submitClaim = (studentId) => {
     const student = students.find((s) => s.id === studentId);
     const comm = commissions.find((c) => c.studentId === studentId);
     if (!student || !comm) return;
 
-    const inst = comm.instalments.find((i) => i.number === instalmentNumber);
-    if (!inst) return;
-
     const prevStatus = comm.status;
     const nowIso = new Date().toISOString();
-
-    // Update instalment
-    const updatedInstalments = comm.instalments.map((i) => {
-      if (i.number === instalmentNumber) {
-        return { ...i, status: 'Under Review', claimedAt: nowIso };
-      }
-      return i;
-    });
 
     const updatedComm = {
       ...comm,
       status: 'Under Review',
-      instalments: updatedInstalments,
+      claimedAt: nowIso,
       updatedAt: nowIso,
     };
 
@@ -267,9 +233,8 @@ export const AppProvider = ({ children }) => {
 
     // Upsert Claim record
     setClaims((prev) => {
-      const existingIdx = prev.findIndex(
-        (c) => c.studentId === studentId && c.instalmentNumber === instalmentNumber
-      );
+      const existingIdx = prev.findIndex((c) => c.studentId === studentId);
+      const claimId = `CLM-${studentId}`;
       if (existingIdx >= 0) {
         return prev.map((c, idx) =>
           idx === existingIdx
@@ -277,14 +242,13 @@ export const AppProvider = ({ children }) => {
                 ...c,
                 status: 'Under Review',
                 submittedAt: nowIso,
-                notes: `Claim for Instalment ${instalmentNumber} submitted by ${currentUser.name}.`,
+                notes: `Claim submitted by ${currentUser.name}.`,
               }
             : c
         );
       }
       const newClaim = {
-        id: `CLM-${studentId}-${instalmentNumber}`,
-        instalmentId: inst.id,
+        id: claimId,
         commissionId: comm.id,
         studentId: student.id,
         studentName: student.name,
@@ -292,18 +256,17 @@ export const AppProvider = ({ children }) => {
         course: student.course,
         agentId: student.agentId,
         agentName: student.agentName,
-        instalmentNumber,
-        amount: inst.amount,
+        amount: comm.totalCommission,
         submittedAt: nowIso,
         status: 'Under Review',
-        notes: `Claim for Instalment ${instalmentNumber} submitted by ${currentUser.name}.`,
+        notes: `Claim submitted by ${currentUser.name}.`,
       };
       return [newClaim, ...prev];
     });
 
-    addAuditLog(studentId, 'Claim Submitted', prevStatus, 'Under Review', `Instalment ${instalmentNumber} claim of £${inst.amount}`);
-    addNotification('Commission Claim Submitted', `${student.agentName} submitted claim for ${student.name} (Instalment ${instalmentNumber}).`, 'info', studentId);
-    addToast(`Commission claim for ${student.name} (Instalment ${instalmentNumber}) submitted successfully.`, 'success');
+    addAuditLog(studentId, 'Claim Submitted', prevStatus, 'Under Review', `Commission claim of £${comm.totalCommission}`);
+    addNotification('Commission Claim Submitted', `${student.agentName} submitted claim for ${student.name} (£${comm.totalCommission}).`, 'info', studentId);
+    addToast(`Commission claim for ${student.name} submitted successfully.`, 'success');
   };
 
   // 2. Approve Claim (Admin action)
@@ -321,7 +284,6 @@ export const AppProvider = ({ children }) => {
         if (student) {
           targetClaim = {
             id: claimId,
-            instalmentId: matchingComm.instalments[0].id,
             commissionId: matchingComm.id,
             studentId: student.id,
             studentName: student.name,
@@ -329,8 +291,7 @@ export const AppProvider = ({ children }) => {
             course: student.course,
             agentId: student.agentId,
             agentName: student.agentName,
-            instalmentNumber: 1,
-            amount: matchingComm.instalments[0].amount,
+            amount: matchingComm.totalCommission,
             submittedAt: nowIso,
             status: 'Under Review',
           };
@@ -345,10 +306,10 @@ export const AppProvider = ({ children }) => {
     if (!comm) return;
 
     setClaims((prev) => {
-      const exists = prev.some((c) => c.id === claim.id || (c.studentId === claim.studentId && c.instalmentNumber === claim.instalmentNumber));
+      const exists = prev.some((c) => c.id === claim.id || c.studentId === claim.studentId);
       if (exists) {
         return prev.map((c) => {
-          if (c.id === claim.id || (c.studentId === claim.studentId && c.instalmentNumber === claim.instalmentNumber)) {
+          if (c.id === claim.id || c.studentId === claim.studentId) {
             return {
               ...c,
               status: 'Ready for Payment',
@@ -372,17 +333,8 @@ export const AppProvider = ({ children }) => {
       ];
     });
 
-    const updatedInstalments = comm.instalments.map((i) => {
-      if (i.number === claim.instalmentNumber) {
-        return { ...i, status: 'Ready for Payment' };
-      }
-      return i;
-    });
-
-    const newCommStatus = calculateOverallStatus({ ...comm, instalments: updatedInstalments });
-
     setCommissions((prev) =>
-      prev.map((c) => (c.studentId === claim.studentId ? { ...c, status: newCommStatus, instalments: updatedInstalments, updatedAt: nowIso } : c))
+      prev.map((c) => (c.studentId === claim.studentId ? { ...c, status: 'Ready for Payment', updatedAt: nowIso } : c))
     );
 
     addAuditLog(claim.studentId, 'Claim Approved', 'Under Review', 'Ready for Payment', notes || 'Approved by admin');
@@ -391,40 +343,22 @@ export const AppProvider = ({ children }) => {
   };
 
   // 3. Mark Payment Paid (Admin action)
-  const markPaymentPaid = (studentId, instalmentNumber) => {
+  const markPaymentPaid = (studentId, customDate) => {
     const student = students.find((s) => s.id === studentId);
     const comm = commissions.find((c) => c.studentId === studentId);
     if (!student || !comm) return;
 
-    const inst = comm.instalments.find((i) => i.number === instalmentNumber);
-    if (!inst) return;
-
     const nowIso = new Date().toISOString();
-
-    const updatedInstalments = comm.instalments.map((i) => {
-      if (i.number === instalmentNumber) {
-        return { ...i, status: 'Paid', paidAt: nowIso };
-      }
-      return i;
-    });
+    const paidAtIso = customDate ? new Date(customDate).toISOString() : nowIso;
 
     // Recalculate financial totals
-    const newPaid = updatedInstalments.filter((i) => i.status === 'Paid').reduce((sum, i) => sum + i.amount, 0);
-    const newRemaining = Math.max(0, comm.totalCommission - newPaid);
-
-    // Calculate new status
-    const tempComm = {
-      ...comm,
-      paid: newPaid,
-      remaining: newRemaining,
-      instalments: updatedInstalments,
-    };
-    const newStatus = calculateOverallStatus(tempComm);
+    const newPaid = comm.totalCommission;
+    const newRemaining = 0;
 
     setCommissions((prev) =>
       prev.map((c) =>
         c.studentId === studentId
-          ? { ...tempComm, status: newStatus, updatedAt: nowIso }
+          ? { ...c, status: 'Paid', paid: newPaid, remaining: newRemaining, paidAt: paidAtIso, updatedAt: nowIso }
           : c
       )
     );
@@ -432,15 +366,15 @@ export const AppProvider = ({ children }) => {
     // Update corresponding claim if exists
     setClaims((prev) =>
       prev.map((cl) =>
-        cl.studentId === studentId && cl.instalmentNumber === instalmentNumber
+        cl.studentId === studentId
           ? { ...cl, status: 'Paid', reviewedAt: nowIso, reviewedBy: currentUser.name }
           : cl
       )
     );
 
-    addAuditLog(studentId, 'Payment Disbursed', comm.status, newStatus, `Payment of £${inst.amount} for Instalment ${instalmentNumber} marked as Paid.`);
-    addNotification('Payment Disbursed', `Payment of £${inst.amount} for ${student.name} marked as Paid.`, 'success', studentId);
-    addToast(`Payment of £${inst.amount} marked as paid.`, 'success');
+    addAuditLog(studentId, 'Payment Disbursed', comm.status, 'Paid', `Payment of £${comm.totalCommission} marked as Paid.`);
+    addNotification('Payment Disbursed', `Payment of £${comm.totalCommission} for ${student.name} marked as Paid.`, 'success', studentId);
+    addToast(`Payment of £${comm.totalCommission} marked as paid.`, 'success');
   };
 
   // 4. Adjust Commission (Admin action)
@@ -453,20 +387,6 @@ export const AppProvider = ({ children }) => {
     const newRemaining = Math.max(0, newTotal - comm.paid);
     const nowIso = new Date().toISOString();
 
-    // Adjust remaining unpaid instalments proportionally
-    const unpaidCount = comm.instalments.filter((i) => i.status !== 'Paid').length;
-
-    let updatedInstalments = comm.instalments;
-    if (unpaidCount > 0) {
-      const perUnpaidAmount = Math.round(newRemaining / unpaidCount);
-      updatedInstalments = comm.instalments.map((i) => {
-        if (i.status !== 'Paid') {
-          return { ...i, amount: perUnpaidAmount };
-        }
-        return i;
-      });
-    }
-
     setCommissions((prev) =>
       prev.map((c) =>
         c.studentId === studentId
@@ -474,7 +394,6 @@ export const AppProvider = ({ children }) => {
               ...c,
               totalCommission: newTotal,
               remaining: newRemaining,
-              instalments: updatedInstalments,
               updatedAt: nowIso,
             }
           : c
@@ -506,12 +425,6 @@ export const AppProvider = ({ children }) => {
     const nowIso = new Date().toISOString();
     const prevStatus = comm.status;
 
-    // Update commission & instalments status
-    const updatedInstalments = comm.instalments.map((i) => ({
-      ...i,
-      status: 'Clawback Requested',
-    }));
-
     setCommissions((prev) =>
       prev.map((c) =>
         c.studentId === studentId
@@ -519,7 +432,6 @@ export const AppProvider = ({ children }) => {
               ...c,
               status: 'Clawback Requested',
               reason,
-              instalments: updatedInstalments,
               updatedAt: nowIso,
             }
           : c
@@ -557,13 +469,6 @@ export const AppProvider = ({ children }) => {
     const prevStatus = comm.status;
     const nowIso = new Date().toISOString();
 
-    const updatedInstalments = comm.instalments.map((i) => {
-      if (i.status !== 'Paid') {
-        return { ...i, status: newStatus };
-      }
-      return i;
-    });
-
     setCommissions((prev) =>
       prev.map((c) =>
         c.studentId === studentId
@@ -571,7 +476,6 @@ export const AppProvider = ({ children }) => {
               ...c,
               status: newStatus,
               reason: reason || c.reason,
-              instalments: updatedInstalments,
               updatedAt: nowIso,
             }
           : c
@@ -580,6 +484,98 @@ export const AppProvider = ({ children }) => {
 
     addAuditLog(studentId, 'Status Changed', prevStatus, newStatus, reason);
     addToast(`Status updated to ${newStatus}.`, 'info');
+  };
+
+  // Update Claim Status (Admin dropdown action)
+  const updateClaimStatus = (studentId, newStatus, reason, customDate) => {
+    const student = students.find((s) => s.id === studentId);
+    const comm = commissions.find((c) => c.studentId === studentId);
+    if (!student || !comm) return;
+
+    const prevStatus = comm.status;
+    if (prevStatus === newStatus) return;
+
+    const nowIso = new Date().toISOString();
+    const paidAtIso = customDate ? new Date(customDate).toISOString() : nowIso;
+
+    // Recalculate financial totals
+    const newPaid = newStatus === 'Paid' ? comm.totalCommission : 0;
+    const newRemaining = newStatus === 'Paid' ? 0 : comm.totalCommission;
+
+    setCommissions((prev) =>
+      prev.map((c) =>
+        c.studentId === studentId
+          ? {
+              ...c,
+              status: newStatus,
+              paid: newPaid,
+              remaining: newRemaining,
+              paidAt: newStatus === 'Paid' ? paidAtIso : undefined,
+              claimedAt: newStatus === 'Under Review' ? nowIso : c.claimedAt,
+              updatedAt: nowIso,
+            }
+          : c
+      )
+    );
+
+    // Update or Upsert or Remove the claim record in claims state
+    setClaims((prev) => {
+      const claimId = `CLM-${studentId}`;
+      const existingIdx = prev.findIndex((c) => c.id === claimId);
+
+      if (newStatus === 'Ready to Claim') {
+        return prev.filter((c) => c.id !== claimId);
+      }
+
+      const notesText = reason || `Status changed to ${newStatus} by ${currentUser.name}.`;
+
+      if (existingIdx >= 0) {
+        return prev.map((c, idx) =>
+          idx === existingIdx
+            ? {
+                ...c,
+                status: newStatus,
+                reviewedAt: ['Ready for Payment', 'Paid', 'Clawback Requested'].includes(newStatus) ? nowIso : c.reviewedAt,
+                reviewedBy: ['Ready for Payment', 'Paid', 'Clawback Requested'].includes(newStatus) ? currentUser.name : c.reviewedBy,
+                submittedAt: newStatus === 'Under Review' ? nowIso : c.submittedAt,
+                notes: notesText,
+              }
+            : c
+        );
+      } else {
+        // Insert new claim record
+        const newClaim = {
+          id: claimId,
+          commissionId: comm.id,
+          studentId: student.id,
+          studentName: student.name,
+          university: student.university,
+          course: student.course,
+          agentId: student.agentId,
+          agentName: student.agentName,
+          amount: comm.totalCommission,
+          submittedAt: nowIso,
+          status: newStatus,
+          reviewedAt: ['Ready for Payment', 'Paid', 'Clawback Requested'].includes(newStatus) ? nowIso : undefined,
+          reviewedBy: ['Ready for Payment', 'Paid', 'Clawback Requested'].includes(newStatus) ? currentUser.name : undefined,
+          notes: notesText,
+        };
+        return [newClaim, ...prev];
+      }
+    });
+
+    const auditNotes = reason
+      ? `Claim status updated to ${newStatus} by ${currentUser.name}. Reason: ${reason}`
+      : `Claim status updated to ${newStatus} by ${currentUser.name}.` + (newStatus === 'Paid' && customDate ? ` Paid Date: ${customDate}` : '');
+
+    addAuditLog(
+      studentId,
+      'Claim Status Updated',
+      prevStatus,
+      newStatus,
+      auditNotes
+    );
+    addToast(`Claim status updated to ${newStatus}.`, 'success');
   };
 
   const markNotificationRead = (id) => {
@@ -616,6 +612,7 @@ export const AppProvider = ({ children }) => {
         adjustCommission,
         requestClawback,
         updateStudentStatus,
+        updateClaimStatus,
         markNotificationRead,
         markAllNotificationsRead,
         getStudentWithCommission,

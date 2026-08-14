@@ -60,6 +60,13 @@ export function getStatusStyle(status) {
         text: 'text-rose-800',
         bg: 'bg-rose-50/60',
       };
+    case 'Rejected':
+      return {
+        badge: 'bg-rose-50 text-rose-900 border-rose-300 font-bold',
+        dot: 'bg-rose-600',
+        text: 'text-rose-900',
+        bg: 'bg-rose-50/60',
+      };
     case 'Not Eligible':
       return {
         badge: 'bg-zinc-100 text-zinc-700 border-zinc-300 font-medium',

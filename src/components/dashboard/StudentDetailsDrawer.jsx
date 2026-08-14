@@ -207,7 +207,7 @@ export const StudentDetailsDrawer = () => {
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Instalments Schedule ({commission.instalments.length})
+              Commission Details
             </button>
 
             {(studentClawbacks.length > 0 || currentUser.role === 'ADMIN') && (
@@ -242,61 +242,57 @@ export const StudentDetailsDrawer = () => {
             </button>
           </div>
 
-          {/* Tab Content 1: Instalments Table */}
+          {/* Tab Content 1: Commission Details Table */}
           {activeTab === 'instalments' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span>Instalments Breakdown</span>
-                <span className="text-[11px] font-normal text-slate-500">
-                  {commission.agreementType} Agreement
-                </span>
+                <span>Commission Details</span>
               </div>
 
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="p-3">Instalment</th>
+                      <th className="p-3">Commission Claim</th>
                       <th className="p-3">Amount</th>
                       <th className="p-3">Status</th>
                       <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {commission.instalments.map((inst) => {
+                    {(() => {
                       const matchingClaim = claims.find(
-                        (c) => c.studentId === student.id && c.instalmentNumber === inst.number
+                        (c) => c.studentId === student.id
                       );
 
                       return (
-                        <tr key={inst.id} className="hover:bg-slate-50">
+                        <tr className="hover:bg-slate-50">
                           <td className="p-3">
                             <div className="font-bold text-slate-900">
-                              {inst.number === 1 ? '1st' : inst.number === 2 ? '2nd' : '3rd'} Instalment
+                              Full Program Commission
                             </div>
-                            <div className="text-[11px] text-slate-500">{inst.label}</div>
-                            {inst.claimedAt && (
-                              <div className="text-[10px] text-slate-400">Claimed: {formatDate(inst.claimedAt)}</div>
+                            {commission.claimedAt && (
+                              <div className="text-[10px] text-slate-400">Claimed: {formatDate(commission.claimedAt)}</div>
                             )}
-                            {inst.paidAt && (
-                              <div className="text-[10px] text-emerald-600 font-medium">Paid: {formatDate(inst.paidAt)}</div>
+                            {commission.paidAt && (
+                              <div className="text-[10px] text-emerald-600 font-medium">Paid: {formatDate(commission.paidAt)}</div>
                             )}
                           </td>
 
                           <td className="p-3 font-extrabold text-slate-900">
-                            {formatGBP(inst.amount)}
+                            {formatGBP(commission.totalCommission)}
                           </td>
 
                           <td className="p-3">
-                            <StatusBadge status={inst.status} size="sm" />
+                            <StatusBadge status={commission.status} size="sm" />
                           </td>
 
                           <td className="p-3 text-right">
                             {/* Agent Action: Claim when Ready to Claim */}
-                            {currentUser.role === 'AGENT' && inst.status === 'Ready to Claim' && (
+                            {currentUser.role === 'AGENT' && commission.status === 'Ready to Claim' && (
                               <button
-                                id={`claim-btn-inst-${inst.number}`}
-                                onClick={() => setClaimInstalmentNum(inst.number)}
+                                id={`claim-btn-commission`}
+                                onClick={() => setClaimInstalmentNum(1)}
                                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
                               >
                                 <FileCheck2 className="w-3.5 h-3.5" />
@@ -305,9 +301,9 @@ export const StudentDetailsDrawer = () => {
                             )}
 
                             {/* Admin Action: Approve claim if Under Review */}
-                            {currentUser.role === 'ADMIN' && inst.status === 'Under Review' && matchingClaim && (
+                            {currentUser.role === 'ADMIN' && commission.status === 'Under Review' && matchingClaim && (
                               <button
-                                id={`admin-approve-inst-${inst.number}`}
+                                id={`admin-approve-commission`}
                                 onClick={() => approveClaim(matchingClaim.id, 'Approved via drawer')}
                                 className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-all flex items-center gap-1 ml-auto"
                               >
@@ -317,10 +313,10 @@ export const StudentDetailsDrawer = () => {
                             )}
 
                             {/* Admin Action: Mark Paid if Ready for Payment */}
-                            {currentUser.role === 'ADMIN' && inst.status === 'Ready for Payment' && (
+                            {currentUser.role === 'ADMIN' && commission.status === 'Ready for Payment' && (
                               <button
-                                id={`admin-paid-inst-${inst.number}`}
-                                onClick={() => markPaymentPaid(student.id, inst.number)}
+                                id={`admin-paid-commission`}
+                                onClick={() => markPaymentPaid(student.id)}
                                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all flex items-center gap-1 ml-auto"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-white" />
@@ -328,7 +324,7 @@ export const StudentDetailsDrawer = () => {
                               </button>
                             )}
 
-                            {inst.status === 'Paid' && (
+                            {commission.status === 'Paid' && (
                               <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Paid
                               </span>
@@ -336,7 +332,7 @@ export const StudentDetailsDrawer = () => {
                           </td>
                         </tr>
                       );
-                    })}
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -457,7 +453,6 @@ export const StudentDetailsDrawer = () => {
       {claimInstalmentNum !== null && (
         <ClaimModal
           studentId={student.id}
-          instalmentNumber={claimInstalmentNum}
           onClose={() => setClaimInstalmentNum(null)}
         />
       )}

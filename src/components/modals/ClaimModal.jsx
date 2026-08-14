@@ -6,7 +6,6 @@ import { ConfirmModal } from './ConfirmModal';
 
 export const ClaimModal = ({
   studentId,
-  instalmentNumber,
   onClose,
 }) => {
   const { getStudentWithCommission, submitClaim } = useApp();
@@ -16,12 +15,9 @@ export const ClaimModal = ({
   if (!data || !data.student || !data.commission) return null;
 
   const { student, commission } = data;
-  const instalment = commission.instalments.find((i) => i.number === instalmentNumber);
-
-  if (!instalment) return null;
 
   const handleConfirmSubmit = () => {
-    submitClaim(studentId, instalmentNumber);
+    submitClaim(studentId);
     setShowConfirm(false);
     onClose();
   };
@@ -43,7 +39,7 @@ export const ClaimModal = ({
             </div>
             <div>
               <h3 className="text-base font-bold">Submit Commission Claim</h3>
-              <p className="text-xs text-blue-100">Review instalment details before submitting</p>
+              <p className="text-xs text-blue-100">Review details before submitting</p>
             </div>
           </div>
           <button
@@ -70,17 +66,10 @@ export const ClaimModal = ({
               </span>
             </div>
 
-            <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-              <span className="text-slate-500 font-medium">Instalment</span>
-              <span className="font-bold text-blue-700">
-                Instalment #{instalment.number} ({instalment.label})
-              </span>
-            </div>
-
             <div className="flex justify-between items-center pt-1">
               <span className="text-slate-500 font-medium">Claim Amount</span>
               <span className="text-lg font-black text-slate-900">
-                {formatGBP(instalment.amount)}
+                {formatGBP(commission.totalCommission)}
               </span>
             </div>
           </div>
@@ -109,7 +98,7 @@ export const ClaimModal = ({
       <ConfirmModal
         isOpen={showConfirm}
         title="Confirm Submission"
-        message={`Are you sure you want to submit a commission claim of ${formatGBP(instalment.amount)} for ${student.name} (Instalment #${instalment.number})?`}
+        message={`Are you sure you want to submit a commission claim of ${formatGBP(commission.totalCommission)} for ${student.name}?`}
         confirmText="Submit Claim Now"
         variant="primary"
         onConfirm={handleConfirmSubmit}

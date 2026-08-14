@@ -7,7 +7,7 @@ export const PaymentsView = () => {
   const { currentUser, commissions, students, addToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Collect all paid instalments
+  // Collect all paid commissions
   const paidTransactions = [];
 
   commissions.forEach((c) => {
@@ -18,19 +18,16 @@ export const PaymentsView = () => {
       return;
     }
 
-    c.instalments.forEach((inst) => {
-      if (inst.status === 'Paid') {
-        paidTransactions.push({
-          studentId: student.id,
-          studentName: student.name,
-          university: student.university,
-          agentName: student.agentName,
-          instalmentLabel: inst.label,
-          amount: inst.amount,
-          paidAt: inst.paidAt || '2026-08-01T10:00:00Z',
-        });
-      }
-    });
+    if (c.status === 'Paid') {
+      paidTransactions.push({
+        studentId: student.id,
+        studentName: student.name,
+        university: student.university,
+        agentName: student.agentName,
+        amount: c.totalCommission,
+        paidAt: c.paidAt || '2026-08-01T10:00:00Z',
+      });
+    }
   });
 
   const filteredTransactions = paidTransactions.filter((t) => {
@@ -46,13 +43,12 @@ export const PaymentsView = () => {
   const totalDisbursed = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   const handleExportCSV = () => {
-    const headers = ['Student ID', 'Student Name', 'University', 'Agent', 'Instalment', 'Amount (£)', 'Payment Date'];
+    const headers = ['Student ID', 'Student Name', 'University', 'Agent', 'Amount (£)', 'Payment Date'];
     const rows = filteredTransactions.map((t) => [
       t.studentId,
       `"${t.studentName}"`,
       `"${t.university}"`,
       `"${t.agentName}"`,
-      `"${t.instalmentLabel}"`,
       t.amount,
       formatDate(t.paidAt),
     ]);
@@ -134,7 +130,6 @@ export const PaymentsView = () => {
                 <th className="p-3.5">Student Name</th>
                 <th className="p-3.5">University</th>
                 <th className="p-3.5">Agent</th>
-                <th className="p-3.5">Instalment</th>
                 <th className="p-3.5">Disbursed Amount</th>
                 <th className="p-3.5">Payment Date</th>
               </tr>
@@ -142,7 +137,7 @@ export const PaymentsView = () => {
             <tbody className="divide-y divide-slate-100 font-medium">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center text-slate-500">
+                  <td colSpan={6} className="p-10 text-center text-slate-500">
                     No paid transactions logged yet.
                   </td>
                 </tr>
@@ -153,7 +148,6 @@ export const PaymentsView = () => {
                     <td className="p-3.5 font-bold text-slate-900">{t.studentName}</td>
                     <td className="p-3.5 text-slate-600">{t.university}</td>
                     <td className="p-3.5 text-slate-600">{t.agentName}</td>
-                    <td className="p-3.5 text-slate-500">{t.instalmentLabel}</td>
                     <td className="p-3.5 font-black text-emerald-700">{formatGBP(t.amount)}</td>
                     <td className="p-3.5 text-slate-500">{formatDate(t.paidAt)}</td>
                   </tr>

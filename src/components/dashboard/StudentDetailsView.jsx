@@ -74,9 +74,8 @@ export const StudentDetailsView = () => {
     { id: 'student_info', label: 'Student Information', icon: User },
     {
       id: 'instalments_schedule',
-      label: 'Instalment Schedule',
+      label: 'Commission Details',
       icon: Calendar,
-      count: commission.instalments.length,
     },
     {
       id: 'clawback_details',
@@ -356,58 +355,57 @@ export const StudentDetailsView = () => {
               </div>
             )}
 
-            {/* 4. Instalments Schedule */}
+            {/* 4. Commission Details */}
             {activeTab === 'instalments_schedule' && (
               <div className="space-y-4">
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                       <tr>
-                        <th className="p-3.5">Instalment</th>
+                        <th className="p-3.5">Commission Claim</th>
                         <th className="p-3.5">Amount</th>
                         <th className="p-3.5">Status</th>
                         <th className="p-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {commission.instalments.map((inst) => {
+                      {(() => {
                         const matchingClaim = claims.find(
-                          (c) => c.studentId === student.id && c.instalmentNumber === inst.number
+                          (c) => c.studentId === student.id
                         );
 
                         return (
-                          <tr key={inst.id} className="hover:bg-slate-50">
+                          <tr className="hover:bg-slate-50">
                             <td className="p-3.5">
                               <div className="font-bold text-slate-900">
-                                {inst.number === 1 ? '1st' : inst.number === 2 ? '2nd' : '3rd'} Instalment
+                                Full Program Commission
                               </div>
-                              <div className="text-[11px] text-slate-500">{inst.label}</div>
-                              {inst.claimedAt && (
+                              {commission.claimedAt && (
                                 <div className="text-[10px] text-slate-400">
-                                  Claimed: {formatDate(inst.claimedAt)}
+                                  Claimed: {formatDate(commission.claimedAt)}
                                 </div>
                               )}
-                              {inst.paidAt && (
+                              {commission.paidAt && (
                                 <div className="text-[10px] text-emerald-600 font-medium">
-                                  Paid: {formatDate(inst.paidAt)}
+                                  Paid: {formatDate(commission.paidAt)}
                                 </div>
                               )}
                             </td>
 
                             <td className="p-3.5 font-extrabold text-slate-900 text-sm">
-                              {formatGBP(inst.amount)}
+                              {formatGBP(commission.totalCommission)}
                             </td>
 
                             <td className="p-3.5">
-                              <StatusBadge status={inst.status} size="sm" />
+                              <StatusBadge status={commission.status} size="sm" />
                             </td>
 
                             <td className="p-3.5 text-right">
                               {/* Agent Action: Claim */}
-                              {currentUser.role === 'AGENT' && inst.status === 'Ready to Claim' && (
+                              {currentUser.role === 'AGENT' && commission.status === 'Ready to Claim' && (
                                 <button
-                                  id={`page-claim-btn-inst-${inst.number}`}
-                                  onClick={() => setClaimInstalmentNum(inst.number)}
+                                  id={`page-claim-btn-commission`}
+                                  onClick={() => setClaimInstalmentNum(1)}
                                   className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 ml-auto"
                                 >
                                   <FileCheck2 className="w-3.5 h-3.5" />
@@ -417,15 +415,15 @@ export const StudentDetailsView = () => {
 
                               {/* Admin Action: Approve */}
                               {currentUser.role === 'ADMIN' &&
-                                inst.status === 'Under Review' &&
+                                commission.status === 'Under Review' &&
                                 matchingClaim && (
                                   <button
-                                    id={`page-admin-approve-inst-${inst.number}`}
+                                    id={`page-admin-approve-commission`}
                                     onClick={() =>
                                       setConfirmConfig({
                                         isOpen: true,
                                         title: 'Confirm Claim Approval',
-                                        message: `Are you sure you want to approve the instalment #${inst.number} claim of ${formatGBP(inst.amount)} for ${student.name}?`,
+                                        message: `Are you sure you want to approve the commission claim of ${formatGBP(commission.totalCommission)} for ${student.name}?`,
                                         confirmText: 'Approve Claim',
                                         variant: 'warning',
                                         onConfirm: () => {
@@ -442,18 +440,18 @@ export const StudentDetailsView = () => {
                                 )}
 
                               {/* Admin Action: Mark Paid */}
-                              {currentUser.role === 'ADMIN' && inst.status === 'Ready for Payment' && (
+                              {currentUser.role === 'ADMIN' && commission.status === 'Ready for Payment' && (
                                 <button
-                                  id={`page-admin-paid-inst-${inst.number}`}
+                                  id={`page-admin-paid-commission`}
                                   onClick={() =>
                                     setConfirmConfig({
                                       isOpen: true,
                                       title: 'Confirm Payment Disbursement',
-                                      message: `Are you sure you want to mark instalment #${inst.number} (${formatGBP(inst.amount)}) as Paid for ${student.name}? This will record the disbursement in the ledger.`,
+                                      message: `Are you sure you want to mark commission of ${formatGBP(commission.totalCommission)} as Paid for ${student.name}? This will record the disbursement in the ledger.`,
                                       confirmText: 'Mark Paid',
                                       variant: 'success',
                                       onConfirm: () => {
-                                        markPaymentPaid(student.id, inst.number);
+                                        markPaymentPaid(student.id);
                                         setConfirmConfig(null);
                                       },
                                     })
@@ -465,7 +463,7 @@ export const StudentDetailsView = () => {
                                 </button>
                               )}
 
-                              {inst.status === 'Paid' && (
+                              {commission.status === 'Paid' && (
                                 <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
                                   <CheckCircle2 className="w-3.5 h-3.5" /> Paid
                                 </span>
@@ -473,7 +471,7 @@ export const StudentDetailsView = () => {
                             </td>
                           </tr>
                         );
-                      })}
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -630,7 +628,6 @@ export const StudentDetailsView = () => {
       {claimInstalmentNum !== null && (
         <ClaimModal
           studentId={student.id}
-          instalmentNumber={claimInstalmentNum}
           onClose={() => setClaimInstalmentNum(null)}
         />
       )}
